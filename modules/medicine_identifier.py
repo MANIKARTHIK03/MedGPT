@@ -1,33 +1,54 @@
-import pytesseract
-from PIL import Image
 import os
-from dotenv import load_dotenv
+import io
+from PIL import Image
+import easyocr
 from openai import OpenAI
+from dotenv import load_dotenv
 
-# Load environment variables (your API key)
+# Load environment variables
 load_dotenv()
 
-# Explicitly tell pytesseract where tesseract.exe is located
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-
+# Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def extract_text_from_image(img_file):
-    """Extract visible text from a tablet/medicine image."""
-    img = Image.open(img_file)
-    text = pytesseract.image_to_string(img)
-    return text.strip()
+    """
+    Extract visible text from a tablet or medicine image using EasyOCR.
+    Works on both local and Streamlit Cloud environments.
+    """
+    try:
+        # Read image and convert to bytes
+        image = Image.open(img_file).convert("RGB")
+        image_bytes = io.BytesIO()
+        image.save(image_bytes, format="PNG")
+        image_bytes = image_bytes.getvalue()
+
+        # Initialize EasyOCR reader
+        reader = easyocr.Reader(['en'], gpu=False)
+        results = reader.readtext(image_bytes, detail=0)
+        text = " ".join(results)
+
+        if not text.strip():
+            return "⚠️ No text detected. Please upload a clearer image."
+
+        return text.strip()
+
+    except Exception as e:
+        return f"⚠️ Error reading image: {e}"
+
 
 def analyze_medicine_info(text):
-    """Use LLM to describe the medicine's purpose and usage."""
-    if not text:
-        return "⚠️ Could not detect any text from the image. Please try again with a clearer photo."
+    """
+    Use LLM to describe the medicine's purpose and usage.
+    """
+    if not text or text.startswith("⚠️"):
+        return "⚠️ Could not detect valid text from the image. Please try again with a better photo."
 
     prompt = f"""
-    You are a healthcare assistant. Based on the detected text from a tablet or medicine image,
-    identify the medicine name and explain:
+    You are a helpful AI healthcare assistant. Based on the detected text from a medicine image,
+    identify the medicine name and explain clearly:
     - What the medicine is used for
-    - Typical dosage or form (if known)
+    - Its typical dosage or form (if known)
     - Common side effects and precautions
 
     Detected text: {text}
@@ -40,4 +61,4 @@ def analyze_medicine_info(text):
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"⚠️ Error: {e}"
+        return f"⚠️ Error during LLM analysis: {e}"
