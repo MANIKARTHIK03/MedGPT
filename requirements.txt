@@ -1,0 +1,15 @@
+streamlit
+pandas
+numpy
+scikit-learn
+plotly
+matplotlib
+reportlab
+python-dotenv
+python-docx
+pytesseract
+pillow
+faiss-cpu
+openai
+langchain
+cryptography
