@@ -130,15 +130,16 @@ elif page == "💊 Medicine Identifier":
 
 
 # ---------------- Prescription Assistant Page ---------------- #
+# ---------------- Prescription Assistant Page ---------------- #
 elif page == "🧾 Prescription Assistant":
     st.subheader("🧾 Describe Your Symptoms to Get an AI Prescription (Educational Only)")
 
-    # --- Collect patient details ---
-    patient_name = st.text_input("👤 Enter Patient Name:")
-    age = st.number_input("🎂 Enter Age:", min_value=0, max_value=120, step=1)
-    gender = st.selectbox("⚧️ Select Gender:", ["Male", "Female", "Other"])
-    symptoms = st.text_area("🩺 Describe your symptoms in detail:")
-    user_email = st.text_input("📧 Enter your email to receive the prescription:")
+    # --- Collect patient details with helpful placeholders ---
+    patient_name = st.text_input("👤 Enter Patient Name:", placeholder="Please enter your full name")
+    age = st.number_input("🎂 Enter Age:", min_value=0, max_value=120, step=1, help="Enter your age in years")
+    gender = st.selectbox("⚧️ Select Gender:", ["Select gender", "Male", "Female", "Other"])
+    symptoms = st.text_area("🩺 Describe your symptoms:", placeholder="Describe how you're feeling, e.g. headache, fever, cough, etc.")
+    user_email = st.text_input("📧 Enter your email:", placeholder="example@gmail.com")
 
     if st.button("Generate Prescription"):
         from modules.prescription_assistant import generate_prescription
