@@ -1,55 +1,70 @@
 import os
 import io
-from PIL import Image
 import easyocr
-from openai import OpenAI
+from PIL import Image, ImageEnhance, ImageFilter
 from dotenv import load_dotenv
+from openai import OpenAI
 
-# Load environment variables
+# Load API key
 load_dotenv()
-
-# Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def preprocess_image(img_file):
+    """Preprocess image for better OCR accuracy."""
+    image = Image.open(img_file).convert("L")  # Convert to grayscale
+    image = image.filter(ImageFilter.SHARPEN)
+    enhancer = ImageEnhance.Contrast(image)
+    image = enhancer.enhance(2)  # Increase contrast
+    return image
 
 def extract_text_from_image(img_file):
     """
-    Extract visible text from a tablet or medicine image using EasyOCR.
-    Works on both local and Streamlit Cloud environments.
+    Extract text using EasyOCR, with improved preprocessing.
+    Falls back to pytesseract if available (for local use).
     """
     try:
-        # Read image and convert to bytes
-        image = Image.open(img_file).convert("RGB")
+        # Preprocess image
+        processed_image = preprocess_image(img_file)
         image_bytes = io.BytesIO()
-        image.save(image_bytes, format="PNG")
+        processed_image.save(image_bytes, format="PNG")
         image_bytes = image_bytes.getvalue()
 
-        # Initialize EasyOCR reader
+        # Try EasyOCR
         reader = easyocr.Reader(['en'], gpu=False)
         results = reader.readtext(image_bytes, detail=0)
-        text = " ".join(results)
+        text = " ".join(results).strip()
 
-        if not text.strip():
-            return "⚠️ No text detected. Please upload a clearer image."
+        # If EasyOCR fails or detects too little text, try Tesseract fallback (only locally)
+        if len(text) < 5:
+            try:
+                import pytesseract
+                pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+                text = pytesseract.image_to_string(processed_image).strip()
+            except Exception:
+                pass
 
-        return text.strip()
+        # Clean and normalize text
+        text = " ".join(text.split())
 
+        if not text:
+            return "⚠️ Could not detect valid text from the image. Please try again with a clearer photo."
+
+        return text
     except Exception as e:
         return f"⚠️ Error reading image: {e}"
 
-
 def analyze_medicine_info(text):
-    """
-    Use LLM to describe the medicine's purpose and usage.
-    """
+    """Use AI to analyze and describe the detected medicine."""
     if not text or text.startswith("⚠️"):
         return "⚠️ Could not detect valid text from the image. Please try again with a better photo."
 
     prompt = f"""
-    You are a helpful AI healthcare assistant. Based on the detected text from a medicine image,
-    identify the medicine name and explain clearly:
-    - What the medicine is used for
-    - Its typical dosage or form (if known)
-    - Common side effects and precautions
+    You are a medical assistant AI. Based on the detected text from a medicine image,
+    identify the medicine and provide:
+    - Its full name and category
+    - Its uses and dosage form
+    - Common side effects
+    - Key precautions or warnings (if known)
 
     Detected text: {text}
     """
@@ -61,4 +76,4 @@ def analyze_medicine_info(text):
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"⚠️ Error during LLM analysis: {e}"
+        return f"⚠️ Error during AI analysis: {e}"
